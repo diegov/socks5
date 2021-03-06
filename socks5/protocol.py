@@ -37,13 +37,16 @@ class Socks5Connection:
     async def read_request(self):
         version, cmd, _, atyp = await self.reader.readexactly(4)
         cmd, atyp = Command(bytes([cmd])), AddressType(bytes([atyp]))
+        dest_addr = None
         if atyp == AddressType.domain_name:
             read_len, = await self.reader.readexactly(1)
+            dest_addr = await self.reader.readexactly(read_len)
         elif atyp in AddressType.ipv4 + AddressType.ipv6:
             read_len = 4 * struct.unpack('B', atyp)[0]
+            dest_addr = '.'.join(str(int(x)) for x in await self.reader.readexactly(read_len))
         else:
             raise exceptions.AddressTypeNotSupported(atyp)
-        dest_addr = '.'.join(str(int(x)) for x in await self.reader.readexactly(read_len))
+        
         dest_port, = struct.unpack(b'!H', (await self.reader.readexactly(2)))
         self.request_received = True
         return Request(version=version, command=cmd, address_type=atyp,
